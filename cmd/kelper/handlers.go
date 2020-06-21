@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 )
@@ -22,15 +24,18 @@ func PingHandler(res http.ResponseWriter, req *http.Request) {
 
 func ShoutHandler(res http.ResponseWriter, req *http.Request) {
 	var shout Shout
-	if req.Body == nil {
-		http.Error(res, "Please give me a shout!\n", 400)
+	err := decodeJSONBody(res, req, &shout)
+	if err != nil {
+		var mr *malformedRequest
+		if errors.As(err, &mr) {
+			http.Error(res, mr.msg, mr.status)
+		} else {
+			log.Println(err.Error())
+			http.Error(res, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 		return
 	}
-	decoder := json.NewDecoder(req.Body).Decode(&shout)
-	if decoder != nil {
-		http.Error(res, decoder.Error(), 400)
-		return
-	}
+
 	hello, _ := regexp.MatchString("([H|h][E|e][L|l]{2}[O|o]).*", shout.Shout)
 
 	if hello {
@@ -40,6 +45,7 @@ func ShoutHandler(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusOK)
 		res.Header().Set("Content-type", "application/json; charset=UTF-8")
 		json.NewEncoder(res).Encode(echo)
+		return
 	} else {
 		echo := Echo{
 			Echo: "How are uuuuu~",
@@ -47,5 +53,6 @@ func ShoutHandler(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusOK)
 		res.Header().Set("Content-type", "application/json; charset=UTF-8")
 		json.NewEncoder(res).Encode(echo)
+		return
 	}
 }
